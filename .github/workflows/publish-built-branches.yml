@@ -174,7 +174,7 @@ jobs:
       - name: Checkout Maestro
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          persist-credentials: false
+          token: ${{ github.token }}
 
       - name: Setup PHP
         uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc # v2
@@ -236,7 +236,6 @@ jobs:
             await script({ github, context, core });
 
       - name: Push to ${{ matrix.branch }}
-        working-directory: build
         env:
           BRANCH: ${{ matrix.branch }}
           COMMIT_MSG: ${{ steps.pr-info.outputs.title }}
@@ -245,11 +244,15 @@ jobs:
           COMMIT_AUTHOR_EMAIL: ${{ steps.pr-info.outputs.author_email }}
           COMMIT_CO_AUTHORS: ${{ steps.pr-info.outputs.co_authors }}
         run: |
-          rm -f composer.lock package-lock.json bun.lockb
+          rm -f build/composer.lock build/package-lock.json build/bun.lockb
 
-          git init
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout --orphan "$BRANCH"
+          git rm -rf --quiet . 2>/dev/null || true
+
+          cp -a build/. .
 
           git add -A
 
@@ -272,5 +275,4 @@ jobs:
             git commit -m "$COMMIT_MSG"
           fi
 
-          git branch -M "$BRANCH"
-          git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH"
+          git push --force origin "HEAD:refs/heads/$BRANCH"
