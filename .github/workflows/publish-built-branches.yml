@@ -1,0 +1,276 @@
+name: Publish Built Branches
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  publish:
+    name: Publish ${{ matrix.branch }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Livewire variants
+          - name: Livewire Kit (Blank)
+            kit: Livewire
+            build_flags: '--blank'
+            branch: livewire-blank
+            node: false
+            chisel: false
+
+          - name: Livewire Kit
+            kit: Livewire
+            build_flags: ''
+            branch: livewire
+            node: false
+            chisel: true
+
+          - name: Livewire Kit (Components)
+            kit: Livewire
+            build_flags: '--components'
+            branch: livewire-components
+            node: false
+            chisel: true
+
+          - name: Livewire Kit (WorkOS)
+            kit: Livewire
+            build_flags: '--workos'
+            branch: livewire-workos
+            node: false
+            chisel: false
+
+          - name: Livewire Kit (Teams)
+            kit: Livewire
+            build_flags: '--teams'
+            branch: livewire-teams
+            node: false
+            chisel: true
+
+          - name: Livewire Kit (WorkOS Teams)
+            kit: Livewire
+            build_flags: '--teams --workos'
+            branch: livewire-workos-teams
+            node: false
+            chisel: false
+
+          # React variants
+          - name: React Kit (Blank)
+            kit: React
+            build_flags: '--blank'
+            branch: react-blank
+            node: true
+            chisel: false
+
+          - name: React Kit
+            kit: React
+            build_flags: ''
+            branch: react
+            node: true
+            chisel: true
+
+          - name: React Kit (WorkOS)
+            kit: React
+            build_flags: '--workos'
+            branch: react-workos
+            node: true
+            chisel: false
+
+          - name: React Kit (Teams)
+            kit: React
+            build_flags: '--teams'
+            branch: react-teams
+            node: true
+            chisel: true
+
+          - name: React Kit (WorkOS Teams)
+            kit: React
+            build_flags: '--teams --workos'
+            branch: react-workos-teams
+            node: true
+            chisel: false
+
+          # Svelte variants
+          - name: Svelte Kit (Blank)
+            kit: Svelte
+            build_flags: '--blank'
+            branch: svelte-blank
+            node: true
+            chisel: false
+
+          - name: Svelte Kit
+            kit: Svelte
+            build_flags: ''
+            branch: svelte
+            node: true
+            chisel: true
+
+          - name: Svelte Kit (WorkOS)
+            kit: Svelte
+            build_flags: '--workos'
+            branch: svelte-workos
+            node: true
+            chisel: false
+
+          - name: Svelte Kit (Teams)
+            kit: Svelte
+            build_flags: '--teams'
+            branch: svelte-teams
+            node: true
+            chisel: true
+
+          - name: Svelte Kit (WorkOS Teams)
+            kit: Svelte
+            build_flags: '--teams --workos'
+            branch: svelte-workos-teams
+            node: true
+            chisel: false
+
+          # Vue variants
+          - name: Vue Kit (Blank)
+            kit: Vue
+            build_flags: '--blank'
+            branch: vue-blank
+            node: true
+            chisel: false
+
+          - name: Vue Kit
+            kit: Vue
+            build_flags: ''
+            branch: vue
+            node: true
+            chisel: true
+
+          - name: Vue Kit (WorkOS)
+            kit: Vue
+            build_flags: '--workos'
+            branch: vue-workos
+            node: true
+            chisel: false
+
+          - name: Vue Kit (Teams)
+            kit: Vue
+            build_flags: '--teams'
+            branch: vue-teams
+            node: true
+            chisel: true
+
+          - name: Vue Kit (WorkOS Teams)
+            kit: Vue
+            build_flags: '--workos --teams'
+            branch: vue-workos-teams
+            node: true
+            chisel: false
+
+    steps:
+      - name: Checkout Maestro
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc # v2
+        with:
+          php-version: '8.4'
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
+          coverage: none
+
+      - name: Setup Node.js
+        if: matrix.node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '22'
+
+      - name: Configure Composer Auth
+        env:
+          CHISEL_TOKEN: ${{ secrets.CHISEL_TOKEN }}
+        run: |
+          if [ -n "$CHISEL_TOKEN" ]; then
+            composer config --global github-oauth.github.com "$CHISEL_TOKEN"
+          fi
+
+      - name: Install Orchestrator Dependencies
+        working-directory: orchestrator
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Build ${{ matrix.name }}
+        working-directory: orchestrator
+        env:
+          CHISEL: ${{ matrix.chisel }}
+        run: |
+          args=(build --no-interaction --kit=${{ matrix.kit }} ${{ matrix.build_flags }})
+          if [ "$CHISEL" = "true" ]; then
+            args+=(--chisel)
+          fi
+          php artisan "${args[@]}"
+
+      - name: Install Build Dependencies
+        if: matrix.chisel
+        working-directory: build
+        run: |
+          composer install --no-interaction --prefer-dist --no-scripts
+          if [ "${{ matrix.node }}" = "true" ]; then
+            npm install
+          fi
+
+      - name: Chisel With All Features
+        if: matrix.chisel
+        working-directory: build
+        run: |
+          php -r '$script = require "chisel.php"; $script->chisel(["auth_features" => ["email-verification", "registration", "2fa", "passkeys", "password-confirmation"]]);'
+
+      - name: Get Merged PR Information
+        id: pr-info
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const script = require('./.github/scripts/get-merged-pr-info.js');
+            await script({ github, context, core });
+
+      - name: Push to ${{ matrix.branch }}
+        working-directory: build
+        env:
+          BRANCH: ${{ matrix.branch }}
+          COMMIT_MSG: ${{ steps.pr-info.outputs.title }}
+          COMMIT_FOUND: ${{ steps.pr-info.outputs.found }}
+          COMMIT_AUTHOR: ${{ steps.pr-info.outputs.author }}
+          COMMIT_AUTHOR_EMAIL: ${{ steps.pr-info.outputs.author_email }}
+          COMMIT_CO_AUTHORS: ${{ steps.pr-info.outputs.co_authors }}
+        run: |
+          rm -f composer.lock package-lock.json bun.lockb
+
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          TRAILERS=""
+          if [ "$COMMIT_FOUND" = "true" ]; then
+            TRAILERS="Co-authored-by: ${COMMIT_AUTHOR} <${COMMIT_AUTHOR_EMAIL}>"
+          fi
+          if [ -n "$COMMIT_CO_AUTHORS" ]; then
+            if [ -n "$TRAILERS" ]; then
+              TRAILERS="${TRAILERS}
+          ${COMMIT_CO_AUTHORS}"
+            else
+              TRAILERS="$COMMIT_CO_AUTHORS"
+            fi
+          fi
+
+          if [ -n "$TRAILERS" ]; then
+            git commit -m "$COMMIT_MSG" -m "$TRAILERS"
+          else
+            git commit -m "$COMMIT_MSG"
+          fi
+
+          git branch -M "$BRANCH"
+          git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH"
