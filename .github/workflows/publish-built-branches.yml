@@ -22,42 +22,42 @@ jobs:
           # Livewire variants
           - name: Livewire Kit (Blank)
             kit: Livewire
-            build_flags: '--blank'
+            build_flags: "--blank"
             branch: livewire-blank
             node: false
             chisel: false
 
           - name: Livewire Kit
             kit: Livewire
-            build_flags: ''
+            build_flags: ""
             branch: livewire
             node: false
             chisel: true
 
           - name: Livewire Kit (Components)
             kit: Livewire
-            build_flags: '--components'
+            build_flags: "--components"
             branch: livewire-components
             node: false
             chisel: true
 
           - name: Livewire Kit (WorkOS)
             kit: Livewire
-            build_flags: '--workos'
+            build_flags: "--workos"
             branch: livewire-workos
             node: false
             chisel: false
 
           - name: Livewire Kit (Teams)
             kit: Livewire
-            build_flags: '--teams'
+            build_flags: "--teams"
             branch: livewire-teams
             node: false
             chisel: true
 
           - name: Livewire Kit (WorkOS Teams)
             kit: Livewire
-            build_flags: '--teams --workos'
+            build_flags: "--teams --workos"
             branch: livewire-workos-teams
             node: false
             chisel: false
@@ -65,35 +65,35 @@ jobs:
           # React variants
           - name: React Kit (Blank)
             kit: React
-            build_flags: '--blank'
+            build_flags: "--blank"
             branch: react-blank
             node: true
             chisel: false
 
           - name: React Kit
             kit: React
-            build_flags: ''
+            build_flags: ""
             branch: react
             node: true
             chisel: true
 
           - name: React Kit (WorkOS)
             kit: React
-            build_flags: '--workos'
+            build_flags: "--workos"
             branch: react-workos
             node: true
             chisel: false
 
           - name: React Kit (Teams)
             kit: React
-            build_flags: '--teams'
+            build_flags: "--teams"
             branch: react-teams
             node: true
             chisel: true
 
           - name: React Kit (WorkOS Teams)
             kit: React
-            build_flags: '--teams --workos'
+            build_flags: "--teams --workos"
             branch: react-workos-teams
             node: true
             chisel: false
@@ -101,35 +101,35 @@ jobs:
           # Svelte variants
           - name: Svelte Kit (Blank)
             kit: Svelte
-            build_flags: '--blank'
+            build_flags: "--blank"
             branch: svelte-blank
             node: true
             chisel: false
 
           - name: Svelte Kit
             kit: Svelte
-            build_flags: ''
+            build_flags: ""
             branch: svelte
             node: true
             chisel: true
 
           - name: Svelte Kit (WorkOS)
             kit: Svelte
-            build_flags: '--workos'
+            build_flags: "--workos"
             branch: svelte-workos
             node: true
             chisel: false
 
           - name: Svelte Kit (Teams)
             kit: Svelte
-            build_flags: '--teams'
+            build_flags: "--teams"
             branch: svelte-teams
             node: true
             chisel: true
 
           - name: Svelte Kit (WorkOS Teams)
             kit: Svelte
-            build_flags: '--teams --workos'
+            build_flags: "--teams --workos"
             branch: svelte-workos-teams
             node: true
             chisel: false
@@ -137,35 +137,35 @@ jobs:
           # Vue variants
           - name: Vue Kit (Blank)
             kit: Vue
-            build_flags: '--blank'
+            build_flags: "--blank"
             branch: vue-blank
             node: true
             chisel: false
 
           - name: Vue Kit
             kit: Vue
-            build_flags: ''
+            build_flags: ""
             branch: vue
             node: true
             chisel: true
 
           - name: Vue Kit (WorkOS)
             kit: Vue
-            build_flags: '--workos'
+            build_flags: "--workos"
             branch: vue-workos
             node: true
             chisel: false
 
           - name: Vue Kit (Teams)
             kit: Vue
-            build_flags: '--teams'
+            build_flags: "--teams"
             branch: vue-teams
             node: true
             chisel: true
 
           - name: Vue Kit (WorkOS Teams)
             kit: Vue
-            build_flags: '--workos --teams'
+            build_flags: "--workos --teams"
             branch: vue-workos-teams
             node: true
             chisel: false
@@ -179,7 +179,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc # v2
         with:
-          php-version: '8.4'
+          php-version: "8.4"
           extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
           coverage: none
 
@@ -187,7 +187,7 @@ jobs:
         if: matrix.node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Configure Composer Auth
         env:
@@ -203,14 +203,7 @@ jobs:
 
       - name: Build ${{ matrix.name }}
         working-directory: orchestrator
-        env:
-          CHISEL: ${{ matrix.chisel }}
-        run: |
-          args=(build --no-interaction --kit=${{ matrix.kit }} ${{ matrix.build_flags }})
-          if [ "$CHISEL" = "true" ]; then
-            args+=(--chisel)
-          fi
-          php artisan "${args[@]}"
+        run: php artisan build --no-interaction --kit=${{ matrix.kit }} ${{ matrix.build_flags }} --chisel
 
       - name: Install Build Dependencies
         if: matrix.chisel
@@ -226,6 +219,11 @@ jobs:
         working-directory: build
         run: |
           php -r '$script = require "chisel.php"; $script->chisel(["auth_features" => ["email-verification", "registration", "2fa", "passkeys", "password-confirmation"]]);'
+
+      - name: Prepare Kit For Publish
+        run: |
+          rm -f build/composer.lock build/package-lock.json build/bun.lockb
+          rm -rf build/.github
 
       - name: Get Merged PR Information
         id: pr-info
@@ -244,18 +242,18 @@ jobs:
           COMMIT_AUTHOR_EMAIL: ${{ steps.pr-info.outputs.author_email }}
           COMMIT_CO_AUTHORS: ${{ steps.pr-info.outputs.co_authors }}
         run: |
-          rm -f build/composer.lock build/package-lock.json build/bun.lockb
-          rm -rf build/.github
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          STAGING=$(mktemp -d)
+          cp -a build/. "$STAGING/"
+
           git checkout --orphan "$BRANCH"
           git rm -rf --quiet . 2>/dev/null || true
-
           find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
 
-          cp -a build/. .
+          cp -a "$STAGING"/. .
+          rm -rf "$STAGING"
 
           git add -A
 
