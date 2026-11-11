@@ -84,9 +84,9 @@ class SecurityTest extends TestCase
             ->assertDontSee('Two-factor authentication');
     }
 
+    /* @chisel-2fa */
     public function test_two_factor_authentication_disabled_when_confirmation_abandoned_between_requests(): void
     {
-        /* @chisel-2fa */
         $user = User::factory()->create();
 
         $user->forceFill([
@@ -106,8 +106,49 @@ class SecurityTest extends TestCase
             'two_factor_secret' => null,
             'two_factor_recovery_codes' => null,
         ]);
-        /* @end-chisel-2fa */
     }
+    /* @end-chisel-2fa */
+
+    /* @chisel-2fa */
+    public function test_two_factor_setup_does_not_reveal_the_secret_when_already_enabled(): void
+    {
+        $user = User::factory()->create();
+
+        $user->forceFill([
+            'two_factor_secret' => encrypt('test-secret'),
+            'two_factor_recovery_codes' => encrypt(json_encode(['code1', 'code2'])),
+            'two_factor_confirmed_at' => now(),
+        ])->save();
+
+        $this->actingAs($user);
+
+        Livewire::test('pages::settings.two-factor-setup-modal', ['requiresConfirmation' => true])
+            ->call('startTwoFactorSetup')
+            ->assertDispatched('two-factor-enabled')
+            ->assertSet('manualSetupKey', '')
+            ->assertSet('qrCodeSvg', '');
+
+        $this->assertSame('test-secret', decrypt($user->refresh()->two_factor_secret));
+    }
+
+    public function test_recovery_codes_are_only_loaded_when_requested(): void
+    {
+        $user = User::factory()->create();
+
+        $user->forceFill([
+            'two_factor_secret' => encrypt('test-secret'),
+            'two_factor_recovery_codes' => encrypt(json_encode(['code1', 'code2'])),
+            'two_factor_confirmed_at' => now(),
+        ])->save();
+
+        $this->actingAs($user);
+
+        Livewire::test('pages::settings.two-factor.recovery-codes')
+            ->assertSet('recoveryCodes', [])
+            ->call('viewRecoveryCodes')
+            ->assertSet('recoveryCodes', ['code1', 'code2']);
+    }
+    /* @end-chisel-2fa */
 
     public function test_password_can_be_updated(): void
     {
